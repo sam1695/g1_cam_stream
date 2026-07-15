@@ -1,0 +1,75 @@
+<html>
+  <head><title>G1 Camera Feed</title></head>
+  <body style="background:#111; margin:0; display:flex; flex-direction:column;
+               justify-content:center; align-items:center; height:100vh; font-family:sans-serif;">
+    <img src="{{ url_for('video_feed') }}" style="max-width:100%; height:auto;">
+    <div style="margin-top:16px; display:flex; align-items:center; gap:12px;">
+      <button onclick="saveSnapshot()"
+              style="padding:10px 20px; font-size:16px; cursor:pointer;">
+        Save Snapshot
+      </button>
+      <button id="recBtn" onclick="toggleRecording()"
+              style="padding:10px 20px; font-size:16px; cursor:pointer;">
+        Start Recording (with audio)
+      </button>
+      <span id="recStatus" style="color:#f88; font-family:monospace;"></span>
+      <span id="status" style="color:#8f8;"></span>
+    </div>
+    <script>
+      function saveSnapshot() {
+        const status = document.getElementById('status');
+        status.textContent = 'Saving...';
+        fetch("{{ url_for('snapshot') }}", { method: 'POST' })
+          .then(r => r.json())
+          .then(data => {
+            status.textContent = data.ok ? ('Saved: ' + data.timestamp) : ('Error: ' + data.error);
+          })
+          .catch(err => { status.textContent = 'Error: ' + err; });
+      }
+
+      let recording = false;
+      let recTimer = null;
+
+      function toggleRecording() {
+        const endpoint = recording ? "{{ url_for('record_stop') }}" : "{{ url_for('record_start') }}";
+        fetch(endpoint, { method: 'POST' })
+          .then(r => r.json())
+          .then(data => {
+            if (!data.ok) {
+              document.getElementById('status').textContent = 'Error: ' + data.error;
+              return;
+            }
+            recording = !recording;
+            document.getElementById('recBtn').textContent =
+              recording ? 'Stop Recording' : 'Start Recording';
+            if (recording) {
+              startRecTimer();
+            } else {
+              stopRecTimer();
+              let msg = 'Saved recording: ' + data.path + ' (' + data.frame_count + ' frames)';
+              if (data.warning) {
+                msg += ' -- WARNING: ' + data.warning;
+              }
+              document.getElementById('status').textContent = msg;
+            }
+          })
+          .catch(err => { document.getElementById('status').textContent = 'Error: ' + err; });
+      }
+
+      function startRecTimer() {
+        const start = Date.now();
+        recTimer = setInterval(() => {
+          const secs = Math.floor((Date.now() - start) / 1000);
+          const mm = String(Math.floor(secs / 60)).padStart(2, '0');
+          const ss = String(secs % 60).padStart(2, '0');
+          document.getElementById('recStatus').textContent = 'REC ' + mm + ':' + ss;
+        }, 500);
+      }
+
+      function stopRecTimer() {
+        if (recTimer) clearInterval(recTimer);
+        document.getElementById('recStatus').textContent = '';
+      }
+    </script>
+  </body>
+</html>
